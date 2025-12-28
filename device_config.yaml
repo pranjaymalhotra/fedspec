@@ -1,0 +1,54 @@
+# Device Configuration for FedSpec
+# Add your compute devices here. The system will automatically select the best available device.
+
+devices:
+  # MacBook Air M2 (Current)
+  macbook_m2:
+    name: "MacBook Air M2"
+    device_type: "mps"  # Apple Silicon
+    fallback: "cpu"
+    available: true
+    
+  # Windows Laptop with NVIDIA GTX 1660 Ti
+  windows_1660ti:
+    name: "Windows Laptop GTX 1660 Ti"
+    device_type: "cuda"  # NVIDIA GPU
+    fallback: "cpu"
+    available: true
+    cuda_device_id: 0  # Use first GPU
+    
+  # CPU-only fallback
+  cpu_only:
+    name: "CPU Only"
+    device_type: "cpu"
+    fallback: "cpu"
+    available: true
+
+# Default device priority (will use first available)
+device_priority:
+  - "cuda"      # NVIDIA GPU (fastest for most operations)
+  - "mps"       # Apple Silicon (good for Mac)
+  - "cpu"       # CPU fallback (slowest but always available)
+
+# Training configurations for different devices
+training_configs:
+  # Fast configuration for quick testing (GTX 1660 Ti)
+  fast:
+    batch_size: 32
+    num_clients: 3
+    num_rounds: 3
+    local_epochs: 1
+    
+  # Standard configuration for regular experiments
+  standard:
+    batch_size: 16
+    num_clients: 10
+    num_rounds: 10
+    local_epochs: 1
+    
+  # Full configuration for paper results
+  paper:
+    batch_size: 16
+    num_clients: 10
+    num_rounds: 20
+    local_epochs: 1
