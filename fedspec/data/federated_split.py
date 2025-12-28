@@ -121,24 +121,43 @@ def dirichlet_split(
             )
             start_idx = end_idx
     
+    # Ensure minimum samples per client (redistribute if needed)
+    min_samples_per_client = max(10, num_samples // (num_clients * 10))
+    
+    # Find clients with too few samples
+    for client_id in range(num_clients):
+        if len(client_indices[client_id]) < min_samples_per_client:
+            deficit = min_samples_per_client - len(client_indices[client_id])
+            
+            # Find clients with surplus samples to donate
+            for donor_id in range(num_clients):
+                if len(client_indices[donor_id]) > min_samples_per_client + deficit:
+                    # Transfer samples from donor to deficit client
+                    samples_to_transfer = min(deficit, len(client_indices[donor_id]) - min_samples_per_client)
+                    transferred = client_indices[donor_id][:samples_to_transfer]
+                    client_indices[client_id].extend(transferred)
+                    client_indices[donor_id] = client_indices[donor_id][samples_to_transfer:]
+                    deficit -= samples_to_transfer
+                    
+                    if deficit <= 0:
+                        break
+    
     # Create client datasets
     client_datasets = []
     for client_id in range(num_clients):
         if len(client_indices[client_id]) == 0:
-            # Handle edge case: client has no data
-            # This can happen with very low alpha and many clients
-            client_data = {
-                "input_ids": torch.zeros((0, dataset["input_ids"].shape[1]), dtype=torch.long),
-                "attention_mask": torch.zeros((0, dataset["attention_mask"].shape[1]), dtype=torch.long),
-                "labels": torch.zeros((0,), dtype=torch.long)
-            }
-        else:
-            idx = torch.tensor(client_indices[client_id], dtype=torch.long)
-            client_data = {
-                "input_ids": dataset["input_ids"][idx],
-                "attention_mask": dataset["attention_mask"][idx],
-                "labels": dataset["labels"][idx]
-            }
+            # Fallback: give at least one sample
+            # Take from largest client
+            largest_client = max(range(num_clients), key=lambda i: len(client_indices[i]))
+            if len(client_indices[largest_client]) > 1:
+                client_indices[client_id].append(client_indices[largest_client].pop())
+        
+        idx = torch.tensor(client_indices[client_id], dtype=torch.long)
+        client_data = {
+            "input_ids": dataset["input_ids"][idx],
+            "attention_mask": dataset["attention_mask"][idx],
+            "labels": dataset["labels"][idx]
+        }
         client_datasets.append(client_data)
     
     return client_datasets
