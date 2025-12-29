@@ -9,6 +9,11 @@ SETUP:
 2. Run this script on both Mac and Windows simultaneously
 3. Mac is primary - if Windows fails, Mac takes over its work
 
+MONITORING:
+- Run 'python view_progress.py' to see real-time progress (Mac-friendly, no GPU usage)
+- Run 'python view_progress.py --watch 30' for auto-refresh every 30 seconds
+- Run 'python verify_checkpoints.py' to verify all checkpoints saved correctly
+
 TARGET: Complete all experiments in 1.5-2 hours (vs 3-4 hours on Mac alone)
 """
 import sys
@@ -83,7 +88,9 @@ def main():
     print("FedSpec: Distributed Experiments (Mac + Windows)")
     print("=" * 70)
     print("\nThis machine will claim and execute experiments from shared queue.")
-    print("Multiple machines can run this simultaneously.\n")
+    print("Multiple machines can run this simultaneously.")
+    print("\n💡 Monitor progress: python view_progress.py --watch 30")
+    print("💡 Verify checkpoints: python verify_checkpoints.py\n")
     
     start_time = time.time()
     
@@ -223,6 +230,9 @@ def main():
     if summary['completed'] == summary['total']:
         print("\n🎉 ALL EXPERIMENTS COMPLETE!")
         print(f"Results saved to: {output_dir}/")
+        print("\n💡 View detailed results:")
+        print("   python view_progress.py")
+        print("   python verify_checkpoints.py")
     else:
         print(f"\n⚠ {summary['pending']} items still pending")
         print("Run again to continue or check for errors")
