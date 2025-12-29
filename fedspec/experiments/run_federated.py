@@ -149,15 +149,19 @@ def run_federated_round(
 def run_federated_experiment(
     config: Config,
     aggregation_method: str = 'fedspec',
-    output_dir: str = 'logs'
+    output_dir: str = 'logs',
+    checkpoint_manager = None,
+    experiment_id: str = None
 ) -> Tuple[MetricsLogger, float]:
     """
-    Run complete federated learning experiment.
+    Run complete federated learning experiment with checkpointing support.
     
     Args:
         config: Configuration object
         aggregation_method: 'fedavg' or 'fedspec'
         output_dir: Directory for output logs
+        checkpoint_manager: CheckpointManager instance (optional)
+        experiment_id: Unique experiment ID for checkpointing (optional)
     
     Returns:
         Tuple of (metrics_logger, final_accuracy)
@@ -238,8 +242,29 @@ def run_federated_experiment(
     # Metrics logger
     metrics_logger = MetricsLogger()
     
+    # Check for checkpoint to resume from
+    start_round = 0
+    if checkpoint_manager and experiment_id:
+        checkpoint_state = checkpoint_manager.load_experiment_state(experiment_id)
+        if checkpoint_state:
+            start_round = checkpoint_state.get('current_round', 0)
+            metrics_logger = MetricsLogger()
+            metrics_logger.rounds = checkpoint_state.get('rounds', [])
+            metrics_logger.frobenius_gaps = checkpoint_state.get('frobenius_gaps', [])
+            metrics_logger.ranks = checkpoint_state.get('ranks', [])
+            metrics_logger.accuracies = checkpoint_state.get('accuracies', [])
+            metrics_logger.comm_bytes = checkpoint_state.get('comm_bytes', [])
+            
+            # Load model state
+            model_state = checkpoint_manager.load_model_state(experiment_id)
+            if model_state:
+                model.load_state_dict(model_state, strict=False)
+                global_lora_matrices = extract_lora_matrices(model)
+            
+            print(f"✓ Resumed from round {start_round}/{config.num_rounds}")
+    
     # Run federated rounds
-    for round_num in range(config.num_rounds):
+    for round_num in range(start_round, config.num_rounds):
         print(f"\nRound {round_num + 1}/{config.num_rounds}")
         
         # Run round
@@ -276,6 +301,24 @@ def run_federated_experiment(
         print(f"  Frobenius gap: {round_metrics['frobenius_gap']:.6f}")
         print(f"  Rank: {round_metrics['rank']}")
         print(f"  Val accuracy: {accuracy:.4f}")
+        
+        # Save checkpoint after each round
+        if checkpoint_manager and experiment_id:
+            checkpoint_state = {
+                'current_round': round_num + 1,
+                'total_rounds': config.num_rounds,
+                'progress': f"{round_num + 1}/{config.num_rounds}",
+                'rounds': metrics_logger.rounds,
+                'frobenius_gaps': metrics_logger.frobenius_gaps,
+                'ranks': metrics_logger.ranks,
+                'accuracies': metrics_logger.accuracies,
+                'comm_bytes': metrics_logger.comm_bytes
+            }
+            checkpoint_manager.save_experiment_state(
+                experiment_id=experiment_id,
+                state=checkpoint_state,
+                model_state=model.state_dict()
+            )
     
     # Save metrics
     os.makedirs(output_dir, exist_ok=True)
